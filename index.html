@@ -121,14 +121,14 @@
       display: block;
       background: #062312;
       color: #4ade80;
-      border: 1.5px solid #16a34a;
+      border: 1px solid #16a34a;
     }
 
     .status-banner.error {
       display: block;
       background: #270d0d;
       color: #f87171;
-      border: 1.5px solid #dc2626;
+      border: 1px solid #dc2626;
     }
 
     /* Card Details */
@@ -257,8 +257,8 @@
   </div>
 
   <script>
-    // Web App URL & Secret API Key
-    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzuedu5sFwgdu4j26oB8x-tmSkUCIbdnlX-e2-ckEx59j8UhHMh96xxgp7E-zsOwwva/exec";
+    // Paste your Web App /exec URL and matching API Key here:
+    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzuedu5sFwgdu4j26oB8x-tmSKUClbdnIX-e2-ckEx59j8UhHMh96xxgp7E-zsOwwva/exec";
     const SCANNER_API_KEY    = "NEXORA_SECURE_SCAN_KEY_2026_x9F2";
 
     let html5QrCode = null;
@@ -267,7 +267,6 @@
 
     async function startScanner() {
       html5QrCode = new Html5Qrcode("reader");
-      // High FPS (20) & optimized scan box for quick phone camera detection
       const config = { 
         fps: 20, 
         qrbox: { width: 250, height: 250 },
@@ -300,7 +299,7 @@
 
     function onScanSuccess(decodedText) {
       const now = Date.now();
-      // Block repeated triggers on the same code within 1.5 seconds
+      // Block repeated triggers on same code within 1.5s
       if (isProcessing || (now - lastScanTime < 1500)) return;
       verifyPass(decodedText);
     }
@@ -317,33 +316,38 @@
       showStatus("Checking pass...", "loading");
 
       try {
+        const payload = JSON.stringify({
+          apiKey: SCANNER_API_KEY,
+          qrCode: qrString.trim()
+        });
+
+        // text/plain avoids CORS preflight triggers on mobile browsers
         const response = await fetch(SCRIPT_WEB_APP_URL, {
           method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify({
-            apiKey: SCANNER_API_KEY,
-            qrCode: qrString.trim()
-          })
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: payload
         });
 
         const data = await response.json();
 
         if (data.success) {
-          playAudioTone(880, 0.12); // High positive beep
+          playAudioTone(880, 0.12);
           vibrateDevice([60]);
           showStatus("✅ PASS VERIFIED — ENTER", "success");
           displayResult(data.attendee, false);
         } else {
-          playAudioTone(250, 0.35); // Low negative buzz
+          playAudioTone(250, 0.35);
           vibrateDevice([150, 100, 150]);
           const errorMsg = data.duplicate ? "⚠️ " + data.message : "❌ " + data.message;
           showStatus(errorMsg, "error");
           if (data.attendee) displayResult(data.attendee, true);
         }
       } catch (err) {
-        showStatus("Network Error: Check Internet", "error");
+        showStatus("Network Error: " + err.message, "error");
       } finally {
-        // Fast reset: Ready for the NEXT scan in 1.2 seconds
+        // Fast reset: Ready for the NEXT scan in 1.2s
         setTimeout(() => {
           isProcessing = false;
           hideStatus();
