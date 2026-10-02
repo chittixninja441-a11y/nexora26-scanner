@@ -290,7 +290,7 @@
 
   <script>
     // Paste your Google Apps Script /exec URL:
-    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzuedu5sFwgdu4j26oB8x-tmSKUClbdnIX-e2-ckEx59j8UhHMh96xxgp7E-zsOwwva/exec";
+    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxh4eXyvRSSDjJcD2KL470Td6H42YW4_xBp9vO9VgRuAMcyMkqJw-956OnKOoHZZq_-/exec";
     const SCANNER_API_KEY    = "NEXORA_SECURE_SCAN_KEY_2026_x9F2";
 
     let codeReader = null;
@@ -362,7 +362,7 @@
         const timeout = setTimeout(() => {
           cleanup();
           reject(new Error("Request timed out."));
-        }, 7000);
+        }, 8000);
 
         function cleanup() {
           if (window[callbackName]) delete window[callbackName];
@@ -375,7 +375,8 @@
           resolve(data);
         };
 
-        script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + callbackName;
+        const separator = url.indexOf("?") >= 0 ? "&" : "?";
+        script.src = url + separator + "callback=" + callbackName;
         script.onerror = function() {
           cleanup();
           reject(new Error("Server connection failed."));
@@ -384,7 +385,6 @@
         document.body.appendChild(script);
       });
     }
-
     async function verifyPass(scannedString) {
       isProcessing = true;
       showStatus("Verifying ticket...", "loading");
