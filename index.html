@@ -299,7 +299,6 @@
 
     function onScanSuccess(decodedText) {
       const now = Date.now();
-      // Block repeated triggers on same code within 1.5s
       if (isProcessing || (now - lastScanTime < 1500)) return;
       verifyPass(decodedText);
     }
@@ -316,20 +315,12 @@
       showStatus("Checking pass...", "loading");
 
       try {
-        const payload = JSON.stringify({
-          apiKey: SCANNER_API_KEY,
-          qrCode: qrString.trim()
-        });
+        // Uses GET query parameters to bypass CORS and mobile browser redirect blocks
+        const queryUrl = SCRIPT_WEB_APP_URL + 
+          "?apiKey=" + encodeURIComponent(SCANNER_API_KEY) +
+          "&qrCode=" + encodeURIComponent(qrString.trim());
 
-        // text/plain avoids CORS preflight triggers on mobile browsers
-        const response = await fetch(SCRIPT_WEB_APP_URL, {
-          method: "POST",
-          headers: {
-            "Content-Type": "text/plain;charset=utf-8"
-          },
-          body: payload
-        });
-
+        const response = await fetch(queryUrl);
         const data = await response.json();
 
         if (data.success) {
@@ -347,7 +338,6 @@
       } catch (err) {
         showStatus("Network Error: " + err.message, "error");
       } finally {
-        // Fast reset: Ready for the NEXT scan in 1.2s
         setTimeout(() => {
           isProcessing = false;
           hideStatus();
