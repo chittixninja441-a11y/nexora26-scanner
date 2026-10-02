@@ -3,12 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>NEXORA 2026 — Turbo Gate Scanner</title>
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <title>NEXORA 2026 — Turbo Barcode & QR Scanner</title>
+  
+  <!-- High-speed ZXing engine for 1D Barcode & 2D QR Code decoding -->
+  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background-color: #060608;
+      background-color: #050507;
       color: #f3f4f6;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       min-height: 100vh;
@@ -47,37 +50,62 @@
       color: #ffffff;
     }
 
-    .scanner-card {
-      background: #0e0e12;
+    /* High Performance Viewport */
+    .viewport-card {
+      position: relative;
+      background: #0d0d12;
       border: 1.5px solid #2a2410;
-      border-radius: 12px;
-      padding: 10px;
-      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.7);
-    }
-
-    #reader {
-      width: 100%;
-      border-radius: 8px;
+      border-radius: 14px;
       overflow: hidden;
-      border: none !important;
+      aspect-ratio: 1 / 1;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
-    #reader video {
-      border-radius: 8px;
+    video {
+      width: 100%;
+      height: 100%;
       object-fit: cover;
+    }
+
+    /* Red Laser Target Overlay */
+    .laser-line {
+      position: absolute;
+      width: 80%;
+      height: 2px;
+      background: #ef4444;
+      box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444;
+      animation: scanLaser 2s infinite ease-in-out;
+      pointer-events: none;
+    }
+
+    @keyframes scanLaser {
+      0% { top: 20%; opacity: 0.2; }
+      50% { top: 80%; opacity: 1; }
+      100% { top: 20%; opacity: 0.2; }
+    }
+
+    .target-box {
+      position: absolute;
+      width: 75%;
+      height: 75%;
+      border: 2px solid rgba(212, 175, 55, 0.4);
+      border-radius: 12px;
+      pointer-events: none;
     }
 
     .controls {
       display: flex;
       gap: 8px;
-      margin-top: 10px;
     }
 
     button {
       flex: 1;
       padding: 12px;
       font-size: 13px;
-      font-weight: 700;
+      font-weight: 800;
       border: none;
       border-radius: 8px;
       cursor: pointer;
@@ -100,7 +128,7 @@
       cursor: not-allowed;
     }
 
-    /* Status Display Banner */
+    /* Dynamic Banner */
     .status-banner {
       padding: 12px;
       border-radius: 8px;
@@ -131,9 +159,9 @@
       border: 1px solid #dc2626;
     }
 
-    /* Card Details */
+    /* Result Card */
     .result-card {
-      background: #0d0d11;
+      background: #0e0e13;
       border: 1.5px solid #d4af37;
       border-radius: 10px;
       padding: 14px 16px;
@@ -184,6 +212,7 @@
       text-align: right;
     }
 
+    /* Manual Fallback */
     .manual-box {
       background: #0e0e12;
       border: 1px solid #22222a;
@@ -217,16 +246,19 @@
 
   <div class="container">
     <header>
-      <div class="badge">Multi-Gate Entrance</div>
+      <div class="badge">Ultra-Fast 1D & 2D Barcode Engine</div>
       <h1>NEXORA 2026</h1>
     </header>
 
-    <div class="scanner-card">
-      <div id="reader"></div>
-      <div class="controls">
-        <button id="btnStart" class="btn-start" onclick="startScanner()">Start Camera</button>
-        <button id="btnStop" class="btn-stop" onclick="stopScanner()" disabled>Stop</button>
-      </div>
+    <div class="viewport-card">
+      <video id="videoPreview" playsinline muted></video>
+      <div class="target-box"></div>
+      <div class="laser-line"></div>
+    </div>
+
+    <div class="controls">
+      <button id="btnStart" class="btn-start" onclick="startScanner()">Start Camera</button>
+      <button id="btnStop" class="btn-stop" onclick="stopScanner()" disabled>Stop</button>
     </div>
 
     <div id="statusBanner" class="status-banner"></div>
@@ -251,55 +283,68 @@
     </div>
 
     <div class="manual-box">
-      <input type="text" id="manualInput" placeholder="Enter Reg ID or QR code manually" />
+      <input type="text" id="manualInput" placeholder="Manual Code or Reg ID" />
       <button onclick="handleManualSubmit()">Check</button>
     </div>
   </div>
 
   <script>
+    // Paste your Google Apps Script /exec URL:
     const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzuedu5sFwgdu4j26oB8x-tmSKUClbdnIX-e2-ckEx59j8UhHMh96xxgp7E-zsOwwva/exec";
     const SCANNER_API_KEY    = "NEXORA_SECURE_SCAN_KEY_2026_x9F2";
 
-    let html5QrCode = null;
+    let codeReader = null;
     let isProcessing = false;
     let lastScanTime = 0;
 
     async function startScanner() {
-      html5QrCode = new Html5Qrcode("reader");
-      const config = { 
-        fps: 20, 
-        qrbox: { width: 250, height: 250 },
-        aspectRatio: 1.0
-      };
+      // Initialize MultiFormat ZXing Reader (handles 1D barcodes and 2D QR codes simultaneously)
+      codeReader = new ZXing.BrowserMultiFormatReader();
 
       try {
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          config,
-          onScanSuccess
+        const videoInputDevices = await codeReader.listVideoInputDevices();
+        
+        // Choose back camera if available
+        let selectedDeviceId = undefined;
+        const backCamera = videoInputDevices.find(device => 
+          device.label.toLowerCase().includes("back") || 
+          device.label.toLowerCase().includes("rear") || 
+          device.label.toLowerCase().includes("environment")
         );
+
+        if (backCamera) {
+          selectedDeviceId = backCamera.deviceId;
+        } else if (videoInputDevices.length > 0) {
+          selectedDeviceId = videoInputDevices[0].deviceId;
+        }
+
         document.getElementById("btnStart").disabled = true;
         document.getElementById("btnStop").disabled = false;
-        showStatus("Ready to scan. Point at QR code...", "loading");
+        showStatus("Scanner ready. Align barcode or QR code with the red line...", "loading");
+
+        // Continuous high-speed decoding loop
+        codeReader.decodeFromVideoDevice(selectedDeviceId, 'videoPreview', (result, err) => {
+          if (result) {
+            const now = Date.now();
+            // Prevent redundant scans of the same item within 1.5 seconds
+            if (isProcessing || (now - lastScanTime < 1500)) return;
+            lastScanTime = now;
+            verifyPass(result.getText());
+          }
+        });
+
       } catch (err) {
-        showStatus("Camera error: " + err, "error");
+        showStatus("Camera error: " + err.message, "error");
       }
     }
 
-    async function stopScanner() {
-      if (html5QrCode) {
-        await html5QrCode.stop();
-        html5QrCode.clear();
+    function stopScanner() {
+      if (codeReader) {
+        codeReader.reset();
         document.getElementById("btnStart").disabled = false;
         document.getElementById("btnStop").disabled = true;
         hideStatus();
       }
-    }
-
-    function onScanSuccess(decodedText) {
-      const now = Date.now();
-      if (isProcessing || (now - lastScanTime < 1500)) return;
-      verifyPass(decodedText);
     }
 
     function handleManualSubmit() {
@@ -308,16 +353,16 @@
       verifyPass(code);
     }
 
-    // JSONP request handler: Immune to CORS and 302 redirect browser drops
+    // JSONP Engine: Completely bypasses CORS and 302 Redirect Blocks
     function jsonpFetch(url) {
       return new Promise((resolve, reject) => {
-        const callbackName = "jsonp_cb_" + Math.round(100000 * Math.random());
+        const callbackName = "cb_" + Math.round(1000000 * Math.random());
         const script = document.createElement("script");
 
         const timeout = setTimeout(() => {
           cleanup();
           reject(new Error("Request timed out."));
-        }, 8000);
+        }, 7000);
 
         function cleanup() {
           if (window[callbackName]) delete window[callbackName];
@@ -333,40 +378,40 @@
         script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + callbackName;
         script.onerror = function() {
           cleanup();
-          reject(new Error("Connection error to server."));
+          reject(new Error("Server connection failed."));
         };
 
         document.body.appendChild(script);
       });
     }
 
-    async function verifyPass(qrString) {
+    async function verifyPass(scannedString) {
       isProcessing = true;
-      lastScanTime = Date.now();
-      showStatus("Checking pass...", "loading");
+      showStatus("Verifying ticket...", "loading");
 
       try {
         const queryUrl = SCRIPT_WEB_APP_URL + 
           "?apiKey=" + encodeURIComponent(SCANNER_API_KEY) +
-          "&qrCode=" + encodeURIComponent(qrString.trim());
+          "&qrCode=" + encodeURIComponent(scannedString.trim());
 
         const data = await jsonpFetch(queryUrl);
 
         if (data.success) {
-          playAudioTone(880, 0.12);
+          playAudioTone(880, 0.12); // High beep
           vibrateDevice([60]);
           showStatus("✅ PASS VERIFIED — ENTER", "success");
           displayResult(data.attendee, false);
         } else {
-          playAudioTone(250, 0.35);
+          playAudioTone(250, 0.35); // Low buzz
           vibrateDevice([150, 100, 150]);
           const errorMsg = data.duplicate ? "⚠️ " + data.message : "❌ " + data.message;
           showStatus(errorMsg, "error");
           if (data.attendee) displayResult(data.attendee, true);
         }
       } catch (err) {
-        showStatus("Network Error: " + err.message, "error");
+        showStatus("Error: " + err.message, "error");
       } finally {
+        // Fast cooldown reset for next attendee
         setTimeout(() => {
           isProcessing = false;
           hideStatus();
