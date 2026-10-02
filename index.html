@@ -257,8 +257,7 @@
   </div>
 
   <script>
-    // Paste your Web App /exec URL and matching API Key here:
-    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxh4eXyvRSSDjJcD2KL470Td6H42YW4_xBp9vO9VgRuAMcyMkqJw-956OnKOoHZZq_-/exec";
+    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzuedu5sFwgdu4j26oB8x-tmSKUClbdnIX-e2-ckEx59j8UhHMh96xxgp7E-zsOwwva/exec";
     const SCANNER_API_KEY    = "NEXORA_SECURE_SCAN_KEY_2026_x9F2";
 
     let html5QrCode = null;
@@ -309,19 +308,49 @@
       verifyPass(code);
     }
 
+    // JSONP request handler: Immune to CORS and 302 redirect browser drops
+    function jsonpFetch(url) {
+      return new Promise((resolve, reject) => {
+        const callbackName = "jsonp_cb_" + Math.round(100000 * Math.random());
+        const script = document.createElement("script");
+
+        const timeout = setTimeout(() => {
+          cleanup();
+          reject(new Error("Request timed out."));
+        }, 8000);
+
+        function cleanup() {
+          if (window[callbackName]) delete window[callbackName];
+          if (script.parentNode) script.parentNode.removeChild(script);
+          clearTimeout(timeout);
+        }
+
+        window[callbackName] = function(data) {
+          cleanup();
+          resolve(data);
+        };
+
+        script.src = url + (url.indexOf("?") >= 0 ? "&" : "?") + "callback=" + callbackName;
+        script.onerror = function() {
+          cleanup();
+          reject(new Error("Connection error to server."));
+        };
+
+        document.body.appendChild(script);
+      });
+    }
+
     async function verifyPass(qrString) {
       isProcessing = true;
       lastScanTime = Date.now();
       showStatus("Checking pass...", "loading");
 
       try {
-        // Uses GET query parameters to bypass CORS and mobile browser redirect blocks
         const queryUrl = SCRIPT_WEB_APP_URL + 
           "?apiKey=" + encodeURIComponent(SCANNER_API_KEY) +
           "&qrCode=" + encodeURIComponent(qrString.trim());
 
-        const response = await fetch(queryUrl);
-        const data = await response.json();
+        const data = await jsonpFetch(queryUrl);
 
         if (data.success) {
           playAudioTone(880, 0.12);
