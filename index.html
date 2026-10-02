@@ -4,9 +4,14 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>NEXORA 2026 — Turbo Barcode & QR Scanner</title>
-  
-  <!-- High-speed ZXing engine for 1D Barcode & 2D QR Code decoding -->
-  <script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
+
+  <!-- ZXing engine (jsDelivr primary, unpkg fallback) -->
+  <script src="https://cdn.jsdelivr.net/npm/@zxing/library@0.21.3/umd/index.min.js"></script>
+  <script>
+    if (typeof ZXing === "undefined") {
+      document.write('<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"><\/script>');
+    }
+  </script>
 
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -20,226 +25,55 @@
       align-items: center;
       padding: 12px;
     }
+    .container { width: 100%; max-width: 440px; display: flex; flex-direction: column; gap: 12px; }
+    header { text-align: center; padding: 6px 0; }
+    .badge { display: inline-block; font-size: 10px; font-weight: 800; letter-spacing: 2px; color: #d4af37; text-transform: uppercase; }
+    h1 { font-size: 20px; font-weight: 900; letter-spacing: 1px; color: #ffffff; }
 
-    .container {
-      width: 100%;
-      max-width: 440px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    header {
-      text-align: center;
-      padding: 6px 0;
-    }
-
-    .badge {
-      display: inline-block;
-      font-size: 10px;
-      font-weight: 800;
-      letter-spacing: 2px;
-      color: #d4af37;
-      text-transform: uppercase;
-    }
-
-    h1 {
-      font-size: 20px;
-      font-weight: 900;
-      letter-spacing: 1px;
-      color: #ffffff;
-    }
-
-    /* High Performance Viewport */
     .viewport-card {
-      position: relative;
-      background: #0d0d12;
-      border: 1.5px solid #2a2410;
-      border-radius: 14px;
-      overflow: hidden;
-      aspect-ratio: 1 / 1;
-      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8);
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      position: relative; background: #0d0d12; border: 1.5px solid #2a2410; border-radius: 14px;
+      overflow: hidden; aspect-ratio: 1 / 1; box-shadow: 0 10px 30px rgba(0,0,0,0.8);
+      display: flex; align-items: center; justify-content: center;
     }
-
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* Red Laser Target Overlay */
+    video { width: 100%; height: 100%; object-fit: cover; }
     .laser-line {
-      position: absolute;
-      width: 80%;
-      height: 2px;
-      background: #ef4444;
+      position: absolute; width: 80%; height: 2px; background: #ef4444;
       box-shadow: 0 0 10px #ef4444, 0 0 20px #ef4444;
-      animation: scanLaser 2s infinite ease-in-out;
-      pointer-events: none;
+      animation: scanLaser 2s infinite ease-in-out; pointer-events: none;
     }
-
     @keyframes scanLaser {
       0% { top: 20%; opacity: 0.2; }
       50% { top: 80%; opacity: 1; }
       100% { top: 20%; opacity: 0.2; }
     }
-
     .target-box {
-      position: absolute;
-      width: 75%;
-      height: 75%;
-      border: 2px solid rgba(212, 175, 55, 0.4);
-      border-radius: 12px;
-      pointer-events: none;
+      position: absolute; width: 75%; height: 75%;
+      border: 2px solid rgba(212,175,55,0.4); border-radius: 12px; pointer-events: none;
     }
 
-    .controls {
-      display: flex;
-      gap: 8px;
-    }
+    .controls { display: flex; gap: 8px; }
+    button { flex: 1; padding: 12px; font-size: 13px; font-weight: 800; border: none; border-radius: 8px; cursor: pointer; transition: opacity 0.2s; }
+    .btn-start { background: linear-gradient(135deg, #f5e3a9 0%, #d4af37 100%); color: #08080a; }
+    .btn-stop { background: #1f1f26; color: #cbd5e1; border: 1px solid #33333d; }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
 
-    button {
-      flex: 1;
-      padding: 12px;
-      font-size: 13px;
-      font-weight: 800;
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
+    .status-banner { padding: 12px; border-radius: 8px; text-align: center; font-size: 14px; font-weight: 800; display: none; }
+    .status-banner.loading { display: block; background: #1e1b10; color: #facc15; border: 1px solid #715918; }
+    .status-banner.success { display: block; background: #062312; color: #4ade80; border: 1px solid #16a34a; }
+    .status-banner.error   { display: block; background: #270d0d; color: #f87171; border: 1px solid #dc2626; }
 
-    .btn-start {
-      background: linear-gradient(135deg, #f5e3a9 0%, #d4af37 100%);
-      color: #08080a;
-    }
-
-    .btn-stop {
-      background: #1f1f26;
-      color: #cbd5e1;
-      border: 1px solid #33333d;
-    }
-
-    button:disabled {
-      opacity: 0.35;
-      cursor: not-allowed;
-    }
-
-    /* Dynamic Banner */
-    .status-banner {
-      padding: 12px;
-      border-radius: 8px;
-      text-align: center;
-      font-size: 14px;
-      font-weight: 800;
-      display: none;
-    }
-
-    .status-banner.loading {
-      display: block;
-      background: #1e1b10;
-      color: #facc15;
-      border: 1px solid #715918;
-    }
-
-    .status-banner.success {
-      display: block;
-      background: #062312;
-      color: #4ade80;
-      border: 1px solid #16a34a;
-    }
-
-    .status-banner.error {
-      display: block;
-      background: #270d0d;
-      color: #f87171;
-      border: 1px solid #dc2626;
-    }
-
-    /* Result Card */
-    .result-card {
-      background: #0e0e13;
-      border: 1.5px solid #d4af37;
-      border-radius: 10px;
-      padding: 14px 16px;
-      display: none;
-    }
-
+    .result-card { background: #0e0e13; border: 1.5px solid #d4af37; border-radius: 10px; padding: 14px 16px; display: none; }
     .result-card.active { display: block; }
+    .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #2e2612; }
+    .reg-tag { font-size: 15px; font-weight: 900; color: #ffd700; }
+    .entry-badge { padding: 3px 8px; border-radius: 12px; font-size: 10px; font-weight: 800; }
+    .row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 13px; }
+    .row-key { color: #94a3b8; text-transform: uppercase; font-size: 11px; font-weight: 700; }
+    .row-val { font-weight: 700; color: #ffffff; text-align: right; }
 
-    .result-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-      padding-bottom: 8px;
-      border-bottom: 1px dashed #2e2612;
-    }
-
-    .reg-tag {
-      font-size: 15px;
-      font-weight: 900;
-      color: #ffd700;
-    }
-
-    .entry-badge {
-      padding: 3px 8px;
-      border-radius: 12px;
-      font-size: 10px;
-      font-weight: 800;
-    }
-
-    .row {
-      display: flex;
-      justify-content: space-between;
-      padding: 4px 0;
-      font-size: 13px;
-    }
-
-    .row-key {
-      color: #94a3b8;
-      text-transform: uppercase;
-      font-size: 11px;
-      font-weight: 700;
-    }
-
-    .row-val {
-      font-weight: 700;
-      color: #ffffff;
-      text-align: right;
-    }
-
-    /* Manual Fallback */
-    .manual-box {
-      background: #0e0e12;
-      border: 1px solid #22222a;
-      border-radius: 8px;
-      padding: 8px;
-      display: flex;
-      gap: 6px;
-    }
-
-    .manual-box input {
-      flex: 1;
-      background: #050507;
-      border: 1px solid #2d2d38;
-      border-radius: 6px;
-      padding: 8px 10px;
-      color: #ffffff;
-      font-size: 13px;
-      outline: none;
-    }
-
-    .manual-box button {
-      flex: 0 0 75px;
-      background: #1f1f26;
-      color: #f5e3a9;
-      border: 1px solid #453916;
-      padding: 8px;
-    }
+    .manual-box { background: #0e0e12; border: 1px solid #22222a; border-radius: 8px; padding: 8px; display: flex; gap: 6px; }
+    .manual-box input { flex: 1; background: #050507; border: 1px solid #2d2d38; border-radius: 6px; padding: 8px 10px; color: #ffffff; font-size: 13px; outline: none; }
+    .manual-box button { flex: 0 0 75px; background: #1f1f26; color: #f5e3a9; border: 1px solid #453916; padding: 8px; }
   </style>
 </head>
 <body>
@@ -268,18 +102,9 @@
         <div id="resRegId" class="reg-tag">—</div>
         <div id="resBadge" class="entry-badge">—</div>
       </div>
-      <div class="row">
-        <span class="row-key">Attendee</span>
-        <span id="resName" class="row-val">—</span>
-      </div>
-      <div class="row">
-        <span class="row-key">Department</span>
-        <span id="resDept" class="row-val">—</span>
-      </div>
-      <div class="row">
-        <span class="row-key">Category</span>
-        <span id="resCategory" class="row-val">—</span>
-      </div>
+      <div class="row"><span class="row-key">Attendee</span><span id="resName" class="row-val">—</span></div>
+      <div class="row"><span class="row-key">Department</span><span id="resDept" class="row-val">—</span></div>
+      <div class="row"><span class="row-key">Category</span><span id="resCategory" class="row-val">—</span></div>
     </div>
 
     <div class="manual-box">
@@ -289,50 +114,46 @@
   </div>
 
   <script>
-    // Paste your Google Apps Script /exec URL:
+    // ⚠️ Must be the /exec URL of a deployment with "Who has access: Anyone"
     const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxh4eXyvRSSDjJcD2KL470Td6H42YW4_xBp9vO9VgRuAMcyMkqJw-956OnKOoHZZq_-/exec";
     const SCANNER_API_KEY    = "NEXORA_SECURE_SCAN_KEY_2026_x9F2";
 
     let codeReader = null;
     let isProcessing = false;
     let lastScanTime = 0;
+    let lastScanText = "";
 
     async function startScanner() {
-      // Initialize MultiFormat ZXing Reader (handles 1D barcodes and 2D QR codes simultaneously)
+      if (typeof ZXing === "undefined") {
+        showStatus("Scanner library failed to load. Check internet and reload.", "error");
+        return;
+      }
+
       codeReader = new ZXing.BrowserMultiFormatReader();
 
       try {
-        const videoInputDevices = await codeReader.listVideoInputDevices();
-        
-        // Choose back camera if available
-        let selectedDeviceId = undefined;
-        const backCamera = videoInputDevices.find(device => 
-          device.label.toLowerCase().includes("back") || 
-          device.label.toLowerCase().includes("rear") || 
-          device.label.toLowerCase().includes("environment")
-        );
+        const devices = await codeReader.listVideoInputDevices();
 
-        if (backCamera) {
-          selectedDeviceId = backCamera.deviceId;
-        } else if (videoInputDevices.length > 0) {
-          selectedDeviceId = videoInputDevices[0].deviceId;
-        }
+        let selectedDeviceId;
+        const back = devices.find(d => /back|rear|environment/i.test(d.label));
+        if (back) selectedDeviceId = back.deviceId;
+        else if (devices.length > 0) selectedDeviceId = devices[devices.length - 1].deviceId;
 
         document.getElementById("btnStart").disabled = true;
         document.getElementById("btnStop").disabled = false;
         showStatus("Scanner ready. Align barcode or QR code with the red line...", "loading");
 
-        // Continuous high-speed decoding loop
-        codeReader.decodeFromVideoDevice(selectedDeviceId, 'videoPreview', (result, err) => {
-          if (result) {
-            const now = Date.now();
-            // Prevent redundant scans of the same item within 1.5 seconds
-            if (isProcessing || (now - lastScanTime < 1500)) return;
-            lastScanTime = now;
-            verifyPass(result.getText());
-          }
+        codeReader.decodeFromVideoDevice(selectedDeviceId, "videoPreview", (result) => {
+          if (!result) return;
+          const text = result.getText();
+          const now = Date.now();
+          if (isProcessing) return;
+          // ignore same code re-read within 3s
+          if (text === lastScanText && now - lastScanTime < 3000) return;
+          lastScanTime = now;
+          lastScanText = text;
+          verifyPass(text);
         });
-
       } catch (err) {
         showStatus("Camera error: " + err.message, "error");
       }
@@ -341,81 +162,109 @@
     function stopScanner() {
       if (codeReader) {
         codeReader.reset();
-        document.getElementById("btnStart").disabled = false;
-        document.getElementById("btnStop").disabled = true;
-        hideStatus();
+        codeReader = null;
       }
+      document.getElementById("btnStart").disabled = false;
+      document.getElementById("btnStop").disabled = true;
+      hideStatus();
     }
 
     function handleManualSubmit() {
-      const code = document.getElementById("manualInput").value.trim();
-      if (!code) return;
+      const input = document.getElementById("manualInput");
+      const code = input.value.trim();
+      if (!code || isProcessing) return;
       verifyPass(code);
     }
+    document.getElementById("manualInput").addEventListener("keydown", (e) => {
+      if (e.key === "Enter") handleManualSubmit();
+    });
 
-    // JSONP Engine: Completely bypasses CORS and 302 Redirect Blocks
+    /* ---------- Network layer: JSONP first, fetch() fallback ---------- */
+
     function jsonpFetch(url) {
       return new Promise((resolve, reject) => {
-        const callbackName = "cb_" + Math.round(1000000 * Math.random());
+        const cb = "cb_" + Date.now() + "_" + Math.floor(Math.random() * 1e6);
         const script = document.createElement("script");
+        let done = false;
 
-        const timeout = setTimeout(() => {
-          cleanup();
-          reject(new Error("Request timed out."));
-        }, 8000);
-
-        function cleanup() {
-          if (window[callbackName]) delete window[callbackName];
-          if (script.parentNode) script.parentNode.removeChild(script);
-          clearTimeout(timeout);
-        }
-
-        window[callbackName] = function(data) {
-          cleanup();
-          resolve(data);
+        const cleanup = () => {
+          done = true;
+          try { delete window[cb]; } catch (_) { window[cb] = undefined; }
+          script.remove();
+          clearTimeout(timer);
         };
 
-        const separator = url.indexOf("?") >= 0 ? "&" : "?";
-        script.src = url + separator + "callback=" + callbackName;
-        script.onerror = function() {
+        const timer = setTimeout(() => {
+          if (done) return;
           cleanup();
-          reject(new Error("Server connection failed."));
-        };
+          reject(new Error("timeout"));
+        }, 10000);
 
+        window[cb] = (data) => { if (done) return; cleanup(); resolve(data); };
+
+        script.src = url + (url.includes("?") ? "&" : "?") + "callback=" + cb + "&_=" + Date.now();
+        script.onerror = () => { if (done) return; cleanup(); reject(new Error("jsonp-failed")); };
         document.body.appendChild(script);
       });
     }
+
+    async function fetchJson(url) {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 10000);
+      try {
+        const res = await fetch(url + "&_=" + Date.now(), { method: "GET", redirect: "follow", signal: ctrl.signal });
+        const text = await res.text();
+        return JSON.parse(text);
+      } finally {
+        clearTimeout(t);
+      }
+    }
+
+    async function callBackend(url) {
+      try {
+        return await jsonpFetch(url);
+      } catch (e1) {
+        try {
+          return await fetchJson(url);
+        } catch (e2) {
+          throw new Error(
+            "Server unreachable. Check internet, and make sure the Apps Script is deployed as Web app → Anyone."
+          );
+        }
+      }
+    }
+
+    /* ---------- Verification ---------- */
+
     async function verifyPass(scannedString) {
       isProcessing = true;
       showStatus("Verifying ticket...", "loading");
 
       try {
-        const queryUrl = SCRIPT_WEB_APP_URL + 
+        const queryUrl = SCRIPT_WEB_APP_URL +
           "?apiKey=" + encodeURIComponent(SCANNER_API_KEY) +
           "&qrCode=" + encodeURIComponent(scannedString.trim());
 
-        const data = await jsonpFetch(queryUrl);
+        const data = await callBackend(queryUrl);
 
         if (data.success) {
-          playAudioTone(880, 0.12); // High beep
+          playAudioTone(880, 0.12);
           vibrateDevice([60]);
           showStatus("✅ PASS VERIFIED — ENTER", "success");
           displayResult(data.attendee, false);
         } else {
-          playAudioTone(250, 0.35); // Low buzz
+          playAudioTone(250, 0.35);
           vibrateDevice([150, 100, 150]);
-          const errorMsg = data.duplicate ? "⚠️ " + data.message : "❌ " + data.message;
-          showStatus(errorMsg, "error");
+          showStatus((data.duplicate ? "⚠️ " : "❌ ") + data.message, "error");
           if (data.attendee) displayResult(data.attendee, true);
         }
       } catch (err) {
         showStatus("Error: " + err.message, "error");
       } finally {
-        // Fast cooldown reset for next attendee
         setTimeout(() => {
           isProcessing = false;
           hideStatus();
-        }, 1200);
+        }, 1500);
       }
     }
 
@@ -429,17 +278,16 @@
       document.getElementById("resCategory").innerText = att.category || "General";
 
       if (isDuplicate) {
-        badge.innerText = "ALREADY ENTERED";
-        badge.style.background = "rgba(239, 68, 68, 0.2)";
+        badge.innerText = "NOT ALLOWED";
+        badge.style.background = "rgba(239,68,68,0.2)";
         badge.style.color = "#f87171";
         badge.style.border = "1px solid #ef4444";
       } else {
         badge.innerText = "ENTRY GRANTED";
-        badge.style.background = "rgba(34, 197, 94, 0.2)";
+        badge.style.background = "rgba(34,197,94,0.2)";
         badge.style.color = "#4ade80";
         badge.style.border = "1px solid #22c55e";
       }
-
       card.classList.add("active");
     }
 
@@ -466,13 +314,12 @@
         gain.connect(ctx.destination);
         osc.start();
         osc.stop(ctx.currentTime + duration);
+        osc.onended = () => ctx.close();
       } catch (_) {}
     }
 
     function vibrateDevice(pattern) {
-      if ("vibrate" in navigator) {
-        navigator.vibrate(pattern);
-      }
+      if ("vibrate" in navigator) navigator.vibrate(pattern);
     }
   </script>
 </body>
