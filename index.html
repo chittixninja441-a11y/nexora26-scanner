@@ -62,6 +62,16 @@
     .status-banner.success { display: block; background: #062312; color: #4ade80; border: 1px solid #16a34a; }
     .status-banner.error   { display: block; background: #270d0d; color: #f87171; border: 1px solid #dc2626; }
 
+    .counter-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #0e0e13; border: 1px solid #2a2410; border-radius: 10px; padding: 10px 14px; }
+    .counter-label { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #94a3b8; text-transform: uppercase; }
+    .counter-num { font-size: 22px; font-weight: 900; color: #ffd700; white-space: nowrap; }
+    .counter-num small { font-size: 12px; font-weight: 700; color: #94a3b8; margin-left: 4px; }
+    .counter-bar { flex: 1 1 100%; height: 6px; background: #1f1f26; border-radius: 3px; overflow: hidden; }
+    .counter-bar > div { height: 100%; width: 0%; background: linear-gradient(90deg, #d4af37, #4ade80); transition: width 0.4s ease; }
+    .counter-card { flex-wrap: wrap; }
+    .counter-num.bump { animation: bump 0.4s ease; }
+    @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.25); color: #4ade80; } 100% { transform: scale(1); } }
+
     .result-card { background: #0e0e13; border: 1.5px solid #d4af37; border-radius: 10px; padding: 14px 16px; display: none; }
     .result-card.active { display: block; }
     .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px dashed #2e2612; }
@@ -96,6 +106,12 @@
     </div>
 
     <div id="statusBanner" class="status-banner"></div>
+
+    <div class="counter-card">
+      <div class="counter-label">Entered</div>
+      <div id="counterNum" class="counter-num">— / —<small>paid</small></div>
+      <div class="counter-bar"><div id="counterFill"></div></div>
+    </div>
 
     <div id="resultCard" class="result-card">
       <div class="result-header">
@@ -234,6 +250,32 @@
       }
     }
 
+    /* ---------- Live counter ---------- */
+
+    function updateCounter(stats) {
+      if (!stats) return;
+      const num = document.getElementById("counterNum");
+      const fill = document.getElementById("counterFill");
+      num.innerHTML = stats.entered + " / " + stats.paid + "<small>paid</small>";
+      fill.style.width = (stats.paid > 0 ? Math.min(100, (stats.entered / stats.paid) * 100) : 0) + "%";
+      num.classList.remove("bump");
+      void num.offsetWidth; // restart animation
+      num.classList.add("bump");
+    }
+
+    async function refreshStats() {
+      if (isProcessing) return;
+      try {
+        const url = SCRIPT_WEB_APP_URL + "?action=stats&apiKey=" + encodeURIComponent(SCANNER_API_KEY);
+        const data = await callBackend(url);
+        updateCounter(data.stats);
+      } catch (_) { /* silent: counter just stays as is */ }
+    }
+
+    // Load on open, then every 30s so counts from other gate phones show up too
+    refreshStats();
+    setInterval(refreshStats, 30000);
+
     /* ---------- Verification ---------- */
 
     async function verifyPass(scannedString) {
@@ -246,6 +288,7 @@
           "&qrCode=" + encodeURIComponent(scannedString.trim());
 
         const data = await callBackend(queryUrl);
+        updateCounter(data.stats);
 
         if (data.success) {
           playAudioTone(880, 0.12);
