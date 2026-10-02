@@ -62,13 +62,12 @@
     .status-banner.success { display: block; background: #062312; color: #4ade80; border: 1px solid #16a34a; }
     .status-banner.error   { display: block; background: #270d0d; color: #f87171; border: 1px solid #dc2626; }
 
-    .counter-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #0e0e13; border: 1px solid #2a2410; border-radius: 10px; padding: 10px 14px; }
+    .counter-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #0e0e13; border: 1px solid #2a2410; border-radius: 10px; padding: 10px 14px; flex-wrap: wrap; }
     .counter-label { font-size: 11px; font-weight: 800; letter-spacing: 1.5px; color: #94a3b8; text-transform: uppercase; }
     .counter-num { font-size: 22px; font-weight: 900; color: #ffd700; white-space: nowrap; }
     .counter-num small { font-size: 12px; font-weight: 700; color: #94a3b8; margin-left: 4px; }
     .counter-bar { flex: 1 1 100%; height: 6px; background: #1f1f26; border-radius: 3px; overflow: hidden; }
     .counter-bar > div { height: 100%; width: 0%; background: linear-gradient(90deg, #d4af37, #4ade80); transition: width 0.4s ease; }
-    .counter-card { flex-wrap: wrap; }
     .counter-num.bump { animation: bump 0.4s ease; }
     @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.25); color: #4ade80; } 100% { transform: scale(1); } }
 
@@ -95,7 +94,7 @@
     </header>
 
     <div class="viewport-card">
-      <video id="videoPreview" playsinline muted></video>
+      <video id="videoPreview" playsinline muted autoplay></video>
       <div class="target-box"></div>
       <div class="laser-line"></div>
     </div>
@@ -130,36 +129,40 @@
   </div>
 
   <script>
-    // ⚠️ Must be the /exec URL of a deployment with "Who has access: Anyone"
-    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbynDEHGNWFX3DCZvoPZsdjxbREWrkQRsD7kZgttsv7s-wwvexoytieQJ4VndX6WbiEz/exec";
+    /* ============================================================
+       CONFIG — the ONLY place the script link lives.
+       Paste your Apps Script Web app URL (ends in /exec) below.
+       Deployed with: Execute as = Me, Who has access = Anyone.
+       ============================================================ */
+    const SCRIPT_WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxL6nxspimqh3-7fILFrGt3zohuZhwgy7UQCrf-v17sFlnAVzxjXlcWh7V8goobify_/exec";
     const SCANNER_API_KEY    = "NEXORA_SECURE_SCAN_KEY_2026_x9F2";
 
+    // In-memory state only (no localStorage / sessionStorage / cookies)
     let codeReader = null;
     let isProcessing = false;
     let lastScanTime = 0;
     let lastScanText = "";
 
     async function startScanner() {
+      if (codeReader) return; // already running
+
       if (typeof ZXing === "undefined") {
         showStatus("Scanner library failed to load. Check internet and reload.", "error");
         return;
       }
 
+      document.getElementById("btnStart").disabled = true;
+      document.getElementById("btnStop").disabled = false;
+      showStatus("Starting camera... please allow camera access.", "loading");
+
       codeReader = new ZXing.BrowserMultiFormatReader();
 
       try {
-        const devices = await codeReader.listVideoInputDevices();
+        // Rear camera preferred. Works on first load without needing camera
+        // permission first (device labels are empty until permission is granted).
+        const constraints = { video: { facingMode: { ideal: "environment" } }, audio: false };
 
-        let selectedDeviceId;
-        const back = devices.find(d => /back|rear|environment/i.test(d.label));
-        if (back) selectedDeviceId = back.deviceId;
-        else if (devices.length > 0) selectedDeviceId = devices[devices.length - 1].deviceId;
-
-        document.getElementById("btnStart").disabled = true;
-        document.getElementById("btnStop").disabled = false;
-        showStatus("Scanner ready. Align barcode or QR code with the red line...", "loading");
-
-        codeReader.decodeFromVideoDevice(selectedDeviceId, "videoPreview", (result) => {
+        await codeReader.decodeFromConstraints(constraints, "videoPreview", (result) => {
           if (!result) return;
           const text = result.getText();
           const now = Date.now();
@@ -170,14 +173,21 @@
           lastScanText = text;
           verifyPass(text);
         });
+
+        showStatus("Scanner ready. Align barcode or QR code with the red line...", "loading");
+        setTimeout(() => { if (!isProcessing) hideStatus(); }, 2500);
       } catch (err) {
-        showStatus("Camera error: " + err.message, "error");
+        try { codeReader.reset(); } catch (_) {}
+        codeReader = null;
+        document.getElementById("btnStart").disabled = false;
+        document.getElementById("btnStop").disabled = true;
+        showStatus("Camera error: " + (err && err.message ? err.message : err) + " — tap Start Camera to retry.", "error");
       }
     }
 
     function stopScanner() {
       if (codeReader) {
-        codeReader.reset();
+        try { codeReader.reset(); } catch (_) {}
         codeReader = null;
       }
       document.getElementById("btnStart").disabled = false;
@@ -364,6 +374,9 @@
     function vibrateDevice(pattern) {
       if ("vibrate" in navigator) navigator.vibrate(pattern);
     }
+
+    /* ---------- AUTO-START: scanner begins as soon as the page opens ---------- */
+    window.addEventListener("load", startScanner);
   </script>
 </body>
 </html>
